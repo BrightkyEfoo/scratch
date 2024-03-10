@@ -1,0 +1,15 @@
+.dark {
+  --background: rgba(27, 27, 27, 0.9);
+  --color: rgba(230, 230, 230, 0.9);
+}
+
+.white {
+  --background: rgba(230, 230, 230, 0.9);
+  --color: rgba(27, 27, 27, 0.9);
+}
+
+#root {
+  transition: all ease 300ms;
+  background-color: var(--background);
+  color: var(--color);
+}
