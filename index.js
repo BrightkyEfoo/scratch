@@ -60,6 +60,8 @@ class Emitter {
   }
 }
 
+const globalEmitter = new Emitter();
+
 // definition de l'etat de l'application
 class ApplicationState {
   _state = {};
@@ -102,6 +104,7 @@ class TitleComponnent extends IComponent {
 class ButtonComponent extends IComponent {
   constructor(props) {
     super();
+    console.log("props", props);
     this.props = props;
     this.props.label = this.props.label || "Click Me";
     this.props.eventListners = this.props.eventListners || [
@@ -112,7 +115,7 @@ class ButtonComponent extends IComponent {
     ];
     this.props.id = this.props.id || genRandomText(4);
   }
-  render = (props) => {
+  onStart = (props) => {
     this.props = { ...this.props, ...props };
     if (this.props.eventListners) {
       this.props.eventListners.forEach((event) => {
@@ -123,6 +126,9 @@ class ButtonComponent extends IComponent {
         ]);
       });
     }
+  };
+  render = (props) => {
+    this.onStart(props);
     return `<button id="${this.props.id}">${this.props.label}</button>`;
   };
 }
@@ -145,6 +151,9 @@ class EventManager {
   addEventListner(elementId, eventName, handler) {
     this._state.push({ elementId, eventName, handler });
   }
+  removeEventListner(elementId, eventName, handler) {
+    // TODO - implement remove listener
+  }
 
   refreshScripts() {
     textGenerated = textGenerated.filter(
@@ -156,21 +165,26 @@ class EventManager {
       console.error("no script tag founded");
     }
 
+    this.scriptElement.innerHTML = ``;
+    this.scriptElement.remove();
+
     const newScript = document.createElement("script");
 
     const text = this._state
-      .map(
-        (event) => `
+      .map((event) => {
+        console.log("event", event);
+        const variableName = genRandomText(4);
+        return `
 
         // ==========================================================================
         // gestion de l'evenement ${event.eventName} sur l'element ${
           event.elementId
         }
 
-        const element${event.elementId} = document.getElementById("${
+        const element${variableName} = document.getElementById("${
           event.elementId
         }");
-        element${event.elementId}.addEventListener("${
+        element${variableName}?.addEventListener("${
           event.eventName
         }", ${event.handler.toString()});
 
@@ -179,8 +193,8 @@ class EventManager {
         }
         // ==========================================================================
 
-    `
-      )
+    `;
+      })
       .join("");
 
     const inlineScript = document.createTextNode(text);
@@ -199,17 +213,24 @@ class Router extends IComponent {
     path: "",
     url: "",
   };
-  _locationProxy = new Proxy(this._state, {
+  _locationProxy = new Proxy(this._location, {
     set: (target, property, newValue) => {
+      console.log("target", target, property, newValue);
       target[property] = newValue;
-      this.emitter.emit("ROUTE_CHANGED", this._location);
+      this.emitter.emit("ROUTE_CHANGED", this._location.path);
+      console.log("target", target, property, newValue);
       return true;
     },
   });
   navigateTo(path) {
-    this._locationProxy.path = path;
     window.history.pushState(null, null, path);
-    this.emitter.emit("ROUTE_CHANGED", this._location);
+    this._location = {
+      path: window.location.pathname,
+      url: window.location.href,
+    };
+    this.emitter.emit("ROUTE_CHANGED", this._location.path);
+    console.log("navigateTo", path);
+    console.log("location", this._location);
   }
   constructor(emitter, componentTrees) {
     super();
@@ -219,9 +240,13 @@ class Router extends IComponent {
     };
     this.emitter = emitter;
     this.componentTrees = componentTrees;
+    globalEmitter.on("NAVIGATE_TO", (path) => {
+      this.navigateTo(path);
+    });
   }
 
   render = () => {
+    console.log("location", this._location);
     return this.componentTrees[this._location.path]
       ?.map((componentObj) =>
         componentObj.component.render({
@@ -242,14 +267,28 @@ class Application {
     this.state = new ApplicationState(this.emitter);
     this.router = new Router(this.emitter, componentsTrees);
     this.eventManager = new EventManager(this.emitter);
+
+    this.emitter.on("APP_RERENDER", () => this.render());
+    this.emitter.on("ROUTE_CHANGED", (path) => {
+      this.render();
+      //   setTimeout(() => {
+      //     window.history.pushState(null, null, path);
+      //   }, 200);
+    });
+  }
+
+  rerender() {
+    console.log("App rerendering");
+    this.root.innerHTML = this.router.render();
   }
 
   render() {
-    root.innerHTML = this.router.render();
+    console.log("App rendering");
+    this.root.innerHTML = this.router.render();
 
     setTimeout(() => {
       this.eventManager.refreshScripts();
-    }, 2000);
+    }, 200);
   }
 }
 
@@ -274,6 +313,57 @@ const main = async () => {
               handler: handleToggleTheme(root),
             },
           ],
+        },
+      },
+      {
+        component: new ButtonComponent({
+          eventListners: [
+            {
+              name: "click",
+              handler: () => {
+                globalEmitter.emit("NAVIGATE_TO", "/index.html/anotherPage");
+              },
+            },
+          ],
+        }),
+        props: {
+          label: "Go to another page",
+        },
+      },
+    ],
+    "/index.html/anotherPage": [
+      {
+        component: new TitleComponnent({
+          text: "another Page",
+        }),
+        props: {
+          text: "another Page",
+        },
+      },
+      {
+        component: new ButtonComponent({}),
+        props: {
+          eventListners: [
+            {
+              name: "click",
+              handler: handleToggleTheme(root),
+            },
+          ],
+        },
+      },
+      {
+        component: new ButtonComponent({
+          eventListners: [
+            {
+              name: "click",
+              handler: () => {
+                globalEmitter.emit("NAVIGATE_TO", "/index.html");
+              },
+            },
+          ],
+        }),
+        props: {
+          label: "Back",
         },
       },
     ],
