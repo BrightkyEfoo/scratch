@@ -3,6 +3,11 @@ const sayHelloOnClick = () => {
   console.log("hello, World");
 };
 
+const handleToggleTheme = (root) => () => {
+  root.classList.toggle("dark");
+  root.classList.toggle("white");
+};
+
 let textGenerated = [];
 
 const genRandomText = (size) => {
@@ -258,11 +263,18 @@ const main = async () => {
         }),
         props: {
           text: "Hello World",
-          
         },
       },
       {
         component: new ButtonComponent({}),
+        props: {
+          eventListners: [
+            {
+              name: "click",
+              handler: handleToggleTheme(root),
+            },
+          ],
+        },
       },
     ],
   };
